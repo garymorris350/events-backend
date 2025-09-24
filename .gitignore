@@ -1,16 +1,30 @@
-cat > .gitignore <<'EOF'
+# Node & build
 node_modules/
 dist/
-.env
-.env.local
-npm-debug.log*
-.DS_Store
-EOF
-!.env.example
-*.local
-.env.*
-.next/
-.turbo/
-.vercel/
 build/
 coverage/
+.next/
+out/
+.turbo/
+.vercel/
+.eslintcache
+npm-debug.log*
+*.log
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Env files
+.env
+.env.*
+!.env.example
+!.env.local.example
+*.local
+
+# Firebase/Google secrets (do NOT commit)
+serviceAccount.json
+serviceAccount*.b64
+firebase-adminsdk-*.json
+*.pem
+*.p12
