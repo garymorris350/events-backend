@@ -1,0 +1,16 @@
+cat > .gitignore <<'EOF'
+node_modules/
+dist/
+.env
+.env.local
+npm-debug.log*
+.DS_Store
+EOF
+!.env.example
+*.local
+.env.*
+.next/
+.turbo/
+.vercel/
+build/
+coverage/
