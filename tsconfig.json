@@ -1,22 +1,19 @@
 {
   "compilerOptions": {
-    /* Layout */
     "rootDir": "src",
     "outDir": "dist",
 
-    /* Target/Modules (ESM on Node) */
-    "target": "ES2020",
+    "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "types": ["node"],
 
-    /* Quality of life */
+    "lib": ["ES2022"],
+
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
 
-    /* Extra safety */
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true
   },
