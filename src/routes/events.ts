@@ -112,8 +112,9 @@ router.get("/", async (_req, res) => {
 router.post("/", requireAdmin, async (req, res) => {
   try {
     const parsed = EventSchema.safeParse(req.body);
-    if (!parsed.success)
+    if (!parsed.success) {
       return res.status(400).json({ error: parsed.error.flatten() });
+    }
 
     const data = parsed.data;
     const now = new Date();
@@ -153,9 +154,7 @@ router.get("/:id/ics", async (req, res) => {
 
     const event = serializeEvent(doc.id, doc.data()!);
     if (!event.start || !event.end) {
-      return res
-        .status(400)
-        .json({ error: "Event missing start/end times" });
+      return res.status(400).json({ error: "Event missing start/end times" });
     }
 
     const ics = buildIcs({
@@ -168,12 +167,12 @@ router.get("/:id/ics", async (req, res) => {
       url: `${process.env.PUBLIC_FRONTEND_URL}/events/${id}`,
     });
 
+    // ✅ Correct headers to force download
     res.setHeader("Content-Type", "text/calendar; charset=utf-8");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="event-${id}.ics"`
-    );
-    res.status(200).send(ics);
+    res.setHeader("Content-Disposition", `attachment; filename="event-${id}.ics"`);
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+
+    return res.status(200).end(ics);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
