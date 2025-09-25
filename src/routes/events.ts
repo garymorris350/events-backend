@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "../lib/firebaseAdmin.js";
-import { EventSchema } from "../lib/schemas.js"; // unified schema
+import { EventSchema } from "../lib/schemas.js";
 
 const router = Router();
 
@@ -36,7 +36,7 @@ function requireAdmin(req: any, res: any, next: any) {
   next();
 }
 
-// --- ICS builder ---
+// --- ICS utils ---
 function fmtUtc(iso: string) {
   const d = new Date(iso);
   const pad = (n: number) => (n < 10 ? "0" : "") + n;
@@ -60,7 +60,7 @@ function esc(s: string) {
     .replace(/\n/g, "\\n");
 }
 
-// fold lines at 75 octets, indent continuation lines
+// fold lines at 75 octets
 function foldLine(line: string): string {
   const bytes = Buffer.from(line, "utf8");
   if (bytes.length <= 75) return line;
@@ -82,12 +82,14 @@ function buildIcs(e: {
   startIso: string;
   endIso: string;
   url?: string;
+  organizer?: { name: string; email: string };
+  attendees?: { name: string; email: string }[];
 }) {
   const dtstamp = fmtUtc(new Date().toISOString());
   const dtstart = fmtUtc(e.startIso);
   const dtend = fmtUtc(e.endIso);
 
-    const lines = [
+  const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
     "PRODID:-//Events Platform//Launchpad//EN",
@@ -102,12 +104,19 @@ function buildIcs(e: {
     e.description ? `DESCRIPTION:${esc(e.description)}` : null,
     e.location ? `LOCATION:${esc(e.location)}` : null,
     e.url ? `URL:${esc(e.url)}` : null,
+    e.organizer
+      ? `ORGANIZER;CN=${esc(e.organizer.name)}:mailto:${e.organizer.email}`
+      : null,
+    ...(e.attendees
+      ? e.attendees.map(
+          (a) => `ATTENDEE;CN=${esc(a.name)};RSVP=TRUE:mailto:${a.email}`
+        )
+      : []),
     "END:VEVENT",
     "END:VCALENDAR",
-  ].filter((l): l is string => Boolean(l)); // <- now strongly typed as string[]
+  ].filter((l): l is string => Boolean(l));
 
   return lines.map(foldLine).join("\r\n");
-
 }
 // --------------------
 
@@ -172,6 +181,28 @@ router.get("/:id/ics", async (req, res) => {
       return res.status(400).json({ error: "Event missing start/end times" });
     }
 
+    // get attendees from signups collection
+    const signupsSnap = await db
+      .collection("signups")
+      .where("eventId", "==", id)
+      .get();
+
+    const attendees =
+      signupsSnap.docs.map((d) => {
+        const data = d.data();
+        return {
+          name: data.name || "Attendee",
+          email: data.email,
+        };
+      }) ?? [];
+
+    const organizer = process.env.ADMIN_EMAIL
+      ? {
+          name: process.env.ADMIN_NAME || "Organizer",
+          email: process.env.ADMIN_EMAIL,
+        }
+      : undefined;
+
     const ics = buildIcs({
       uid: `${id}@events-platform`,
       title: event.title,
@@ -180,6 +211,8 @@ router.get("/:id/ics", async (req, res) => {
       startIso: event.start,
       endIso: event.end,
       url: `${process.env.PUBLIC_FRONTEND_URL}/events/${id}`,
+      ...(organizer ? { organizer } : {}),
+      attendees,
     });
 
     res.setHeader("Content-Type", "text/calendar; charset=utf-8");
