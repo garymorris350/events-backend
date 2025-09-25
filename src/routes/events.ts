@@ -60,6 +60,20 @@ function esc(s: string) {
     .replace(/\n/g, "\\n");
 }
 
+// fold lines at 75 octets, indent continuation lines
+function foldLine(line: string): string {
+  const bytes = Buffer.from(line, "utf8");
+  if (bytes.length <= 75) return line;
+  let out = "";
+  let i = 0;
+  while (i < bytes.length) {
+    const slice = bytes.subarray(i, i + 75);
+    out += slice.toString("utf8") + (i + 75 < bytes.length ? "\r\n " : "");
+    i += 75;
+  }
+  return out;
+}
+
 function buildIcs(e: {
   uid: string;
   title: string;
@@ -73,7 +87,7 @@ function buildIcs(e: {
   const dtstart = fmtUtc(e.startIso);
   const dtend = fmtUtc(e.endIso);
 
-  const lines = [
+    const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
     "PRODID:-//Events Platform//Launchpad//EN",
@@ -90,9 +104,10 @@ function buildIcs(e: {
     e.url ? `URL:${esc(e.url)}` : null,
     "END:VEVENT",
     "END:VCALENDAR",
-  ].filter(Boolean);
+  ].filter((l): l is string => Boolean(l)); // <- now strongly typed as string[]
 
-  return lines.join("\r\n");
+  return lines.map(foldLine).join("\r\n");
+
 }
 // --------------------
 
@@ -167,9 +182,11 @@ router.get("/:id/ics", async (req, res) => {
       url: `${process.env.PUBLIC_FRONTEND_URL}/events/${id}`,
     });
 
-    // ✅ Correct headers to force download
     res.setHeader("Content-Type", "text/calendar; charset=utf-8");
-    res.setHeader("Content-Disposition", `attachment; filename="event-${id}.ics"`);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="event-${id}.ics"`
+    );
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
 
     return res.status(200).end(ics);
