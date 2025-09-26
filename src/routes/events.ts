@@ -1,232 +1,76 @@
+// src/routes/events.ts
 import { Router } from "express";
 import { db } from "../lib/firebaseAdmin.js";
 import { EventSchema } from "../lib/schemas.js";
+import { Timestamp } from "firebase-admin/firestore";
 
 const router = Router();
 
-function toISO(v: any) {
-  if (!v) return undefined;
-  if (typeof v?.toDate === "function") return v.toDate().toISOString();
-  if (v instanceof Date) return v.toISOString();
-  if (typeof v === "string") return v;
-  return undefined;
-}
+// GET all events
+router.get("/", async (_req, res) => {
+  const snapshot = await db.collection("events").orderBy("start").get();
+  const events = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  return res.json(events);
+});
 
-function serializeEvent(id: string, data: FirebaseFirestore.DocumentData) {
-  return {
-    id,
-    title: data.title,
-    description: data.description ?? "",
-    location: data.location,
-    start: toISO(data.start),
-    end: toISO(data.end),
-    priceType: data.priceType ?? "free",
-    isPaid: Boolean(data.isPaid),
-    pricePence: data.pricePence ?? undefined,
-    createdAt: toISO(data.createdAt),
-    updatedAt: toISO(data.updatedAt),
-  };
-}
+// GET single event
+router.get("/:id", async (req, res) => {
+  const doc = await db.collection("events").doc(req.params.id).get();
+  if (!doc.exists) return res.status(404).json({ error: "Not found" });
+  return res.json({ id: doc.id, ...doc.data() });
+});
 
-function requireAdmin(req: any, res: any, next: any) {
-  const pass = req.headers["x-admin-passcode"];
-  if (!process.env.ADMIN_PASSCODE || pass !== process.env.ADMIN_PASSCODE) {
-    return res.status(403).json({ error: "Forbidden" });
-  }
-  next();
-}
+// GET event as .ics file
+router.get("/:id/ics", async (req, res) => {
+  const doc = await db.collection("events").doc(req.params.id).get();
+  if (!doc.exists) return res.status(404).json({ error: "Not found" });
 
-// --- ICS utils ---
-function fmtUtc(iso: string) {
-  const d = new Date(iso);
-  const pad = (n: number) => (n < 10 ? "0" : "") + n;
-  return (
-    d.getUTCFullYear().toString() +
-    pad(d.getUTCMonth() + 1) +
-    pad(d.getUTCDate()) +
-    "T" +
-    pad(d.getUTCHours()) +
-    pad(d.getUTCMinutes()) +
-    pad(d.getUTCSeconds()) +
-    "Z"
-  );
-}
-
-function esc(s: string) {
-  return s
-    .replace(/\\/g, "\\\\")
-    .replace(/,/g, "\\,")
-    .replace(/;/g, "\\;")
-    .replace(/\n/g, "\\n");
-}
-
-// fold lines at 75 octets
-function foldLine(line: string): string {
-  const bytes = Buffer.from(line, "utf8");
-  if (bytes.length <= 75) return line;
-  let out = "";
-  let i = 0;
-  while (i < bytes.length) {
-    const slice = bytes.subarray(i, i + 75);
-    out += slice.toString("utf8") + (i + 75 < bytes.length ? "\r\n " : "");
-    i += 75;
-  }
-  return out;
-}
-
-function buildIcs(e: {
-  uid: string;
-  title: string;
-  description?: string;
-  location?: string;
-  startIso: string;
-  endIso: string;
-  url?: string;
-  organizer?: { name: string; email: string };
-  attendees?: { name: string; email: string }[];
-}) {
-  const dtstamp = fmtUtc(new Date().toISOString());
-  const dtstart = fmtUtc(e.startIso);
-  const dtend = fmtUtc(e.endIso);
-
-  const lines = [
+  const ev = doc.data()!;
+  const icsContent = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Events Platform//Launchpad//EN",
+    "PRODID:-//Events Platform//EN",
     "CALSCALE:GREGORIAN",
-    "METHOD:PUBLISH",
     "BEGIN:VEVENT",
-    `UID:${esc(e.uid)}`,
-    `DTSTAMP:${dtstamp}`,
-    `DTSTART:${dtstart}`,
-    `DTEND:${dtend}`,
-    `SUMMARY:${esc(e.title)}`,
-    e.description ? `DESCRIPTION:${esc(e.description)}` : null,
-    e.location ? `LOCATION:${esc(e.location)}` : null,
-    e.url ? `URL:${esc(e.url)}` : null,
-    e.organizer
-      ? `ORGANIZER;CN=${esc(e.organizer.name)}:mailto:${e.organizer.email}`
-      : null,
-    ...(e.attendees
-      ? e.attendees.map(
-          (a) => `ATTENDEE;CN=${esc(a.name)};RSVP=TRUE:mailto:${a.email}`
-        )
-      : []),
+    `UID:${doc.id}@events-platform`,
+    `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, "").split(".")[0]}Z`,
+    `DTSTART:${new Date(ev.start).toISOString().replace(/[-:]/g, "").split(".")[0]}Z`,
+    `DTEND:${new Date(ev.end).toISOString().replace(/[-:]/g, "").split(".")[0]}Z`,
+    `SUMMARY:${ev.title}`,
+    `DESCRIPTION:${ev.description}`,
+    `LOCATION:${ev.location}`,
     "END:VEVENT",
     "END:VCALENDAR",
-  ].filter((l): l is string => Boolean(l));
+  ].join("\r\n");
 
-  return lines.map(foldLine).join("\r\n");
-}
-// --------------------
-
-// GET /events
-router.get("/", async (_req, res) => {
-  try {
-    const snap = await db.collection("events").orderBy("start", "asc").get();
-    const events = snap.docs.map((d) => serializeEvent(d.id, d.data()));
-    res.json(events);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error" });
-  }
+  res.setHeader("Content-Type", "text/calendar");
+  res.setHeader("Content-Disposition", `attachment; filename=event-${doc.id}.ics`);
+  return res.send(icsContent);
 });
 
-// POST /events (admin)
-router.post("/", requireAdmin, async (req, res) => {
-  try {
-    const parsed = EventSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
-    }
-
-    const data = parsed.data;
-    const now = new Date();
-    const docRef = await db.collection("events").add({
-      ...data,
-      start: new Date(data.start),
-      end: new Date(data.end),
-      createdAt: now,
-      updatedAt: now,
-    });
-    const saved = await docRef.get();
-    res.status(201).json(serializeEvent(saved.id, saved.data()!));
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error" });
+// POST new event (admin only)
+router.post("/", async (req, res) => {
+  if (req.get("x-admin-passcode") !== process.env.ADMIN_PASSCODE) {
+    return res.status(403).json({ error: "Forbidden" });
   }
-});
 
-// GET /events/:id
-router.get("/:id", async (req, res) => {
-  try {
-    const doc = await db.collection("events").doc(String(req.params.id)).get();
-    if (!doc.exists) return res.status(404).json({ error: "Not found" });
-    res.json(serializeEvent(doc.id, doc.data()!));
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error" });
+  const parsed = EventSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
   }
-});
 
-// GET /events/:id/ics
-router.get("/:id/ics", async (req, res) => {
-  try {
-    const id = String(req.params.id);
-    const doc = await db.collection("events").doc(id).get();
-    if (!doc.exists) return res.status(404).json({ error: "Not found" });
+  const data = {
+    ...parsed.data,
+    createdAt: Timestamp.now(),
+  };
 
-    const event = serializeEvent(doc.id, doc.data()!);
-    if (!event.start || !event.end) {
-      return res.status(400).json({ error: "Event missing start/end times" });
-    }
+  const docRef = await db.collection("events").add(data);
 
-    // get attendees from signups collection
-    const signupsSnap = await db
-      .collection("signups")
-      .where("eventId", "==", id)
-      .get();
+  // fetch saved document so we return full event
+  const saved = await docRef.get();
+  const event = { id: saved.id, ...saved.data() };
 
-    const attendees =
-      signupsSnap.docs.map((d) => {
-        const data = d.data();
-        return {
-          name: data.name || "Attendee",
-          email: data.email,
-        };
-      }) ?? [];
-
-    const organizer = process.env.ADMIN_EMAIL
-      ? {
-          name: process.env.ADMIN_NAME || "Organizer",
-          email: process.env.ADMIN_EMAIL,
-        }
-      : undefined;
-
-    const ics = buildIcs({
-      uid: `${id}@events-platform`,
-      title: event.title,
-      description: event.description,
-      location: event.location,
-      startIso: event.start,
-      endIso: event.end,
-      url: `${process.env.PUBLIC_FRONTEND_URL}/events/${id}`,
-      ...(organizer ? { organizer } : {}),
-      attendees,
-    });
-
-    res.setHeader("Content-Type", "text/calendar; charset=utf-8");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="event-${id}.ics"`
-    );
-    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-
-    return res.status(200).end(ics);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error" });
-  }
+  return res.status(201).json(event);
 });
 
 export default router;
