@@ -13,7 +13,7 @@ app.use(express.json());
 const envOriginsRaw = process.env.ALLOW_ORIGINS ?? process.env.ALLOW_ORIGIN ?? "";
 const envOrigins = envOriginsRaw
   .split(",")
-  .map((s) => s.trim())
+  .map((s) => s.trim().replace(/\/$/, "")) // strip trailing slashes from env values
   .filter(Boolean);
 
 const defaultDevOrigins = [
@@ -27,9 +27,24 @@ const allowedOrigins = Array.from(new Set([...defaultDevOrigins, ...envOrigins])
 
 const corsOptions: CorsOptions = {
   origin(origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    if (/^http:\/\/192\.168\.\d+\.\d+(?::\d+)?$/.test(origin)) return callback(null, true);
+    if (!origin) return callback(null, true); // allow server-to-server / curl
+
+    const normalizedOrigin = origin.replace(/\/$/, ""); // strip trailing slash
+
+    // exact matches from env + defaults
+    if (allowedOrigins.includes(normalizedOrigin)) {
+      return callback(null, true);
+    }
+
+    // allow local LAN (192.168.x.x)
+    if (/^http:\/\/192\.168\.\d+\.\d+(?::\d+)?$/.test(normalizedOrigin)) {
+      return callback(null, true);
+    }
+
+    // allow all Netlify deploys (main + previews)
+    if (/^https:\/\/[a-z0-9-]+\.netlify\.app$/.test(normalizedOrigin)) {
+      return callback(null, true);
+    }
 
     console.warn("CORS blocked origin:", origin);
     return callback(new Error("Not allowed by CORS"));
@@ -54,7 +69,10 @@ if (process.env.NODE_ENV !== "test") {
   const port = Number(process.env.PORT) || 10000;
   app.listen(port, () => {
     console.log(`API listening on ${port}`);
-    console.log("Allowed origins:", allowedOrigins.length ? allowedOrigins.join(", ") : "(none)");
+    console.log(
+      "Allowed origins:",
+      allowedOrigins.length ? allowedOrigins.join(", ") : "(none)"
+    );
   });
 }
 
