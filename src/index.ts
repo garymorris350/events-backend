@@ -5,6 +5,7 @@ import cors, { CorsOptions } from "cors";
 import events from "./routes/events.js";
 import signups from "./routes/signups.js";
 import checkout from "./routes/checkout.js"; // Stripe
+import tmdb from "./routes/tmdb.js";
 
 const app = express();
 app.use(express.json());
@@ -63,6 +64,8 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 app.use("/events", events);
 app.use("/signups", signups);
 app.use("/checkout", checkout);
+app.use("/tmdb", tmdb);
+
 
 // Only listen if not in test mode
 if (process.env.NODE_ENV !== "test") {
