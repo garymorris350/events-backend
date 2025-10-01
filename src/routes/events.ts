@@ -29,10 +29,10 @@ router.get("/:id/ics", async (req, res) => {
   const icsContent = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Events Platform//EN",
+    "PRODID:-//FilmHub//EN",
     "CALSCALE:GREGORIAN",
     "BEGIN:VEVENT",
-    `UID:${doc.id}@events-platform`,
+    `UID:${doc.id}@filmhub`,
     `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, "").split(".")[0]}Z`,
     `DTSTART:${new Date(ev.start).toISOString().replace(/[-:]/g, "").split(".")[0]}Z`,
     `DTEND:${new Date(ev.end).toISOString().replace(/[-:]/g, "").split(".")[0]}Z`,
@@ -61,6 +61,7 @@ router.post("/", async (req, res) => {
 
   const data = {
     ...parsed.data,
+    // movieId will be present here if supplied (optional)
     createdAt: Timestamp.now(),
   };
 

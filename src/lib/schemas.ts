@@ -16,24 +16,38 @@ export const EventSchema = z.object({
   priceType: z.enum(["free", "fixed", "pay_what_you_feel"]).default("free"),
   pricePence: z.coerce.number().int().positive().optional().nullable(), // required if fixed
   capacity: z.coerce.number().int().positive().optional().nullable(),
+
+  /** New: optional TMDb movie ID */
+  movieId: z.string().trim().optional().nullable(),
 })
 .superRefine((data, ctx) => {
   // end after start
   const startMs = Date.parse(data.start);
   const endMs = Date.parse(data.end);
   if (!(endMs > startMs)) {
-    ctx.addIssue({ path: ["end"], code: z.ZodIssueCode.custom, message: "end must be after start" });
+    ctx.addIssue({
+      path: ["end"],
+      code: z.ZodIssueCode.custom,
+      message: "end must be after start",
+    });
   }
 
   // price rules
   if (data.priceType === "fixed") {
     if (data.pricePence == null) {
-      ctx.addIssue({ path: ["pricePence"], code: z.ZodIssueCode.custom, message: "pricePence is required for fixed price events" });
+      ctx.addIssue({
+        path: ["pricePence"],
+        code: z.ZodIssueCode.custom,
+        message: "pricePence is required for fixed price events",
+      });
     }
   } else {
-    // for free / pay_what_you_feel, ignore fixed price
     if (data.priceType === "free" && data.pricePence != null) {
-      ctx.addIssue({ path: ["pricePence"], code: z.ZodIssueCode.custom, message: "pricePence must be omitted for free events" });
+      ctx.addIssue({
+        path: ["pricePence"],
+        code: z.ZodIssueCode.custom,
+        message: "pricePence must be omitted for free events",
+      });
     }
   }
 })
@@ -50,7 +64,7 @@ export const SignupSchema = z.object({
   eventId: nonEmpty(1),
   name: nonEmpty(2),
   email: z.string().email(),
-  amountPence: z.coerce.number().int().positive().optional(), // optional; validate against event rules at runtime if needed
+  amountPence: z.coerce.number().int().positive().optional(),
 });
 
 export type SignupInput = z.infer<typeof SignupSchema>;
