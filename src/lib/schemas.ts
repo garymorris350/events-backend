@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-/** Reusable bits */
+/** Reusable */
 const isoDate = z.string().refine((s) => !Number.isNaN(Date.parse(s)), "Invalid ISO datetime");
 const nonEmpty = (min: number) => z.string().trim().min(min);
 

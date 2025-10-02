@@ -7,9 +7,10 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "nodemon --watch src --exec \"node --loader ts-node/esm src/index.ts\"",
+    "dev": "nodemon --watch src --ext ts,tsx --exec ts-node --esm src/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest"
+    "test": "vitest",
+    "migrate:dates": "ts-node --esm src/tools/migrate-events-dates.ts"
   },
   "engines": {
     "node": "20.x"
@@ -21,15 +22,20 @@
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
     "firebase-admin": "^13.5.0",
+    "ics": "^3.8.1",
     "stripe": "^18.5.0",
     "zod": "^4.1.11"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/node": "^24.6.1",
     "@types/supertest": "^6.0.3",
+    "jest": "^30.2.0",
     "nodemon": "^3.1.10",
     "supertest": "^7.1.4",
+    "ts-jest": "^29.4.4",
     "ts-node": "^10.9.2",
+    "tsx": "^4.20.6",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"
   }
