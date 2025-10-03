@@ -3,7 +3,7 @@ import { Router } from "express";
 import { db } from "../lib/firebaseAdmin.js";
 import { EventSchema } from "../lib/schemas.js";
 import { Timestamp } from "firebase-admin/firestore";
-import ics from "ics"; // correct import
+import ics from "ics";
 const { createEvent: createIcsEvent } = ics;
 
 const router = Router();
@@ -14,7 +14,7 @@ const router = Router();
 const ADMIN_PASS = (process.env.ADMIN_PASSCODE ?? "").trim();
 if (!ADMIN_PASS) {
   console.warn(
-    "[events] ADMIN_PASSCODE is empty. POST /events will always return 403 until set."
+    "[events] ADMIN_PASSCODE is empty. POST/DELETE /events will always return 403 until set."
   );
 }
 
@@ -149,6 +149,43 @@ router.post("/", async (req, res) => {
     return res.status(201).json(normalizeEvent(saved.id, saved.data()));
   } catch (e: any) {
     return res.status(400).json({ error: e?.message || "Invalid payload" });
+  }
+});
+
+// DELETE event (protected by admin passcode)
+router.delete("/:id", async (req, res) => {
+  try {
+    const raw = req.headers["x-admin-passcode"];
+    const got =
+      typeof raw === "string" ? raw.trim() : Array.isArray(raw) ? raw[0]?.trim() : "";
+
+    if (!got) {
+      return res
+        .status(403)
+        .json({ error: "Forbidden: missing x-admin-passcode header" });
+    }
+    if (!ADMIN_PASS) {
+      return res
+        .status(403)
+        .json({ error: "Forbidden: server ADMIN_PASSCODE not configured" });
+    }
+    if (got !== ADMIN_PASS) {
+      return res.status(403).json({ error: "Forbidden: invalid passcode" });
+    }
+
+    const { id } = req.params;
+    const ref = db.collection("events").doc(id);
+    const snap = await ref.get();
+
+    if (!snap.exists) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    await ref.delete();
+    return res.json({ success: true });
+  } catch (e: any) {
+    console.error("[events] DELETE error:", e);
+    return res.status(500).json({ error: e?.message || "Failed to delete event" });
   }
 });
 
