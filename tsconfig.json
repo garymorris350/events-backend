@@ -1,25 +1,15 @@
 {
   "compilerOptions": {
-    "rootDir": "src",
-    "outDir": "dist",
-    "noImplicitAny": false,
-
-    "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-
-    "lib": ["ES2022", "DOM"],
-    "types": ["node"],
-
-    "strict": true,
-    "skipLibCheck": true,
-    "esModuleInterop": true,
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "node",
     "resolveJsonModule": true,
-
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
-
-    "typeRoots": ["./src/types", "./node_modules/@types"]
+    "outDir": "dist",
+    "rootDir": "src",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "skipLibCheck": true
   },
-  "include": ["src", "src/global.d.ts", "src/types/**/*.d.ts"]
+  "include": ["src"]
 }

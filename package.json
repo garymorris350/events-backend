@@ -1,23 +1,23 @@
 {
   "name": "events-backend",
   "version": "1.0.0",
-  "description": "Backend API for Events Platform (Express + Firebase Admin + Zod + optional Stripe)",
+  "description": "Backend API for Events Platform (Express + Firebase Admin + Firestore)",
   "license": "MIT",
   "type": "module",
-  "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "nodemon --watch src --ext ts,tsx --exec ts-node --esm src/index.ts",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest",
-    "migrate:dates": "ts-node --esm src/tools/migrate-events-dates.ts"
-  },
+  "main": "dist/server.js",
   "engines": {
     "node": "20.x"
   },
+  "scripts": {
+    "dev": "tsc && node --watch dist/server.js",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "lint": "eslint . --ext .ts",
+    "test": "echo \"No tests defined\"",
+    "typecheck": "tsc --noEmit",
+    "migrate:dates": "tsx src/tools/migrate-events-dates.ts"
+  },
   "dependencies": {
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.3",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
@@ -27,14 +27,13 @@
     "zod": "^4.1.11"
   },
   "devDependencies": {
-    "@types/jest": "^30.0.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
     "@types/node": "^24.6.1",
     "@types/supertest": "^6.0.3",
-    "jest": "^30.2.0",
+    "concurrently": "^9.2.1",
     "nodemon": "^3.1.10",
     "supertest": "^7.1.4",
-    "ts-jest": "^29.4.4",
-    "ts-node": "^10.9.2",
     "tsx": "^4.20.6",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"

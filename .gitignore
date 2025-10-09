@@ -1,35 +1,21 @@
-# Node & build
-node_modules/
-dist/
-build/
-coverage/
-.next/
-out/
-.turbo/
-.vercel/
-.eslintcache
+# Node
+node_modules
 npm-debug.log*
-*.log
+yarn-debug.log*
+yarn-error.log*
 
-# OS cruft
-.DS_Store
-Thumbs.db
+# Build output
+dist
+*.tsbuildinfo
 
-# Env files
+# Env
 .env
 .env.*
-!.env.example
-!.env.local.example
-*.local
 
-# Firebase/Google secrets (do NOT commit)
-serviceAccount.json
-serviceAccount*.b64
-firebase-adminsdk-*.json
-*.pem
-*.p12
+# IDEs
+.vscode
+.idea
 
-# secrets
-serviceAccount.json
-serviceAccount*.b64
-.env*
+# OS
+.DS_Store
+Thumbs.db
