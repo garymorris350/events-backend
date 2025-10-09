@@ -1,8 +1,16 @@
 // src/index.ts
-// 1) Load env FIRST so any imported modules (e.g., firebaseAdmin) see variables
+// Load env first so downstream modules see variables
 import "dotenv/config";
 
-// Optional: clearer crash logs during dev
+import express from "express";
+import cors, { type CorsOptions } from "cors";
+
+import events from "./routes/events.js";
+import signups from "./routes/signups.js";
+import checkout from "./routes/checkout.js"; // optional: Stripe
+import tmdb from "./routes/tmdb.js";
+
+// Surface crashes clearly during dev
 process.on("uncaughtException", (err) => {
   console.error("[uncaughtException]", err);
   process.exit(1);
@@ -12,28 +20,19 @@ process.on("unhandledRejection", (reason) => {
   process.exit(1);
 });
 
-import express from "express";
-import cors, { type CorsOptions } from "cors";
-
-import events from "./routes/events.js";
-import signups from "./routes/signups.js";
-import checkout from "./routes/checkout.js"; // Stripe (optional)
-import tmdb from "./routes/tmdb.js";
-
 const app = express();
 app.use(express.json());
 
 /* =========================
-   CORS Config
+   CORS
    ========================= */
 
-// Parse env origins (comma-separated list)
-const envOriginsRaw =
-  (process.env.ALLOW_ORIGINS || process.env.ALLOW_ORIGIN || "").toString();
-const envOrigins = envOriginsRaw
+const rawOrigins = String(process.env.ALLOW_ORIGINS ?? process.env.ALLOW_ORIGIN ?? "");
+const parsedEnvOrigins = rawOrigins
   .split(",")
-  .map((s) => s.trim().replace(/\/$/, "")) // normalize trailing slash
-  .filter(Boolean);
+  .map((s) => s.trim())
+  .filter((s) => s.length > 0)
+  .map((s) => s.replace(/\/$/, "")); // drop trailing slash after trimming
 
 const defaultDevOrigins = [
   "http://localhost:3000",
@@ -42,10 +41,11 @@ const defaultDevOrigins = [
   "http://127.0.0.1:3001",
 ];
 
-const allowedOrigins = Array.from(new Set([...defaultDevOrigins, ...envOrigins]));
+const allowedOrigins = Array.from(new Set([...defaultDevOrigins, ...parsedEnvOrigins]));
+const corsWarned = new Set<string>(); // avoid repeating the same warning
 
-// Don’t throw in origin() — return false to deny so tests can assert headers cleanly
 const corsOptions: CorsOptions = {
+  // Return false (don’t throw) so tests/clients see a clean CORS denial
   origin(origin, callback) {
     if (!origin) return callback(null, true); // server-to-server / curl / tests
 
@@ -58,7 +58,10 @@ const corsOptions: CorsOptions = {
 
     if (ok) return callback(null, true);
 
-    console.warn("CORS blocked origin:", origin);
+    if (!corsWarned.has(origin)) {
+      corsWarned.add(origin);
+      console.warn("[CORS] blocked origin:", origin);
+    }
     return callback(null, false);
   },
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -67,32 +70,35 @@ const corsOptions: CorsOptions = {
 };
 
 app.use(cors(corsOptions));
-// Express 5 + path-to-regexp v6: avoid "*" (invalid). Use a regexp for “all”.
+// Express 5 + path-to-regexp v6: use a regexp instead of "*"
 app.options(/.*/, cors(corsOptions));
 
 /* =========================
    Routes
    ========================= */
 
-app.get("/health", (_req, res) => res.json({ ok: true }));
+app.get("/health", (_req, res) =>
+  res.json({
+    ok: true,
+    version: process.env.npm_package_version || "unknown",
+  })
+);
 
 app.use("/events", events);
 app.use("/signups", signups);
 app.use("/checkout", checkout);
 
-// Enable /tmdb only when an API key is set (avoids import-time surprises)
-if (process.env.TMDB_API_KEY && process.env.TMDB_API_KEY.trim()) {
+// Enable /tmdb only if configured
+if (process.env.TMDB_API_KEY?.trim()) {
   app.use("/tmdb", tmdb);
-} else {
-  console.warn("[tmdb] TMDB_API_KEY not set — /tmdb routes disabled");
 }
 
 /* =========================
-   Start Server
+   Start
    ========================= */
 
 if (process.env.NODE_ENV !== "test") {
-  const port = Number(process.env.PORT) || 10000;
+  const port = Number.parseInt(process.env.PORT ?? "", 10) || 10000;
   app.listen(port, () => {
     console.log(`API listening on ${port}`);
     console.log(
